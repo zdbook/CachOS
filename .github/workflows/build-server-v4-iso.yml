@@ -42,7 +42,7 @@ jobs:
           echo "Setting up Arch Linux base environment..."
           
           # Setup CachyOS repository for latest packages
-          cat << 'EOF' >> /etc/pacman.conf
+          cat <<-'EOF' >> /etc/pacman.conf
           [cachyos]
           Server = https://mirror.cachyos.org/repo/x86_64/cachyos
           EOF
@@ -210,7 +210,7 @@ jobs:
           echo "Setting up ISO build environment..."
           
           # Setup CachyOS repository
-          cat << 'EOF' >> /etc/pacman.conf
+          cat <<-'EOF' >> /etc/pacman.conf
           [cachyos]
           Server = https://mirror.cachyos.org/repo/x86_64/cachyos
           EOF
@@ -262,7 +262,7 @@ jobs:
           cp /etc/pacman.d/mirrorlist /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.d/mirrorlist
 
           # Create packages.x86_64 with server profile
-          cat > /tmp/iso-build/archiso-profile/archlive/packages.x86_64 << 'PKGLIST'
+          cat > /tmp/iso-build/archiso-profile/archlive/packages.x86_64 <<-'PKGLIST'
           # Base
           base
           linux-firmware
@@ -337,7 +337,7 @@ jobs:
           PKGLIST
           
           # Create profiledef.sh
-          cat > /tmp/iso-build/archiso-profile/archlive/profiledef.sh << 'PROFILEDEF'
+          cat > /tmp/iso-build/archiso-profile/archlive/profiledef.sh <<-'PROFILEDEF'
           #!/usr/bin/env bash
           
           iso_name="CachyOS-Server"
@@ -373,7 +373,7 @@ jobs:
 
             if compgen -G "/tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst" > /dev/null; then
               repo-add /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/custom.db.tar.gz /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst
-              cat >> /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.conf << 'EOF'
+              cat >> /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.conf <<-'EOF'
                 [custom-kernel]
                 SigLevel = Optional TrustAll
                 Server = file:///root/repo
@@ -382,7 +382,7 @@ jobs:
 
             # Configure server boot preset
             mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset
-            cat > /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset/99-cachyos-custom.preset << 'PRESET'
+            cat > /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset/99-cachyos-custom.preset <<-'PRESET'
           disable systemd-networkd.service
           disable systemd-resolved.service
           enable NetworkManager.service
