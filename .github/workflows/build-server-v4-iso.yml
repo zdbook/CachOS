@@ -101,6 +101,7 @@ jobs:
         run: |
           cd /tmp
           git clone --depth 1 https://github.com/CachyOS/linux-cachyos.git
+          sudo chown -R builder:builder /tmp/linux-cachyos
           echo "Repository cloned successfully"
           
       - name: Configure for x86-64-v4 Server Build
