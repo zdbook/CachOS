@@ -251,7 +251,7 @@ jobs:
       - name: Prepare Archiso Profile
         run: |
           # Use releng as base but customize for server
-          mkdir -p /tmp/iso-build/archiso-profile/archlive/{airootfs/etc,boot,efi,kernels,packages,packages.x86_64}
+          mkdir -p /tmp/iso-build/archiso-profile/archlive/{airootfs/etc,boot,efi,kernels,packages}
           
           # Copy CachyOS branding if available
           cp -r /tmp/iso-build/calamares-config/etc/calamares /tmp/iso-build/archiso-profile/archlive/airootfs/etc/ 2>/dev/null || true
