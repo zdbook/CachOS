@@ -373,23 +373,13 @@ jobs:
 
             if compgen -G "/tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst" > /dev/null; then
               repo-add /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/custom.db.tar.gz /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst
-              cat >> /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.conf <<-'EOF'
-                [custom-kernel]
-                SigLevel = Optional TrustAll
-                Server = file:///root/repo
-              EOF
+              printf '%s\n' '[custom-kernel]' 'SigLevel = Optional TrustAll' 'Server = file:///root/repo' >> /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.conf
             fi
 
             # Configure server boot preset
             mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset
-            cat > /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset/99-cachyos-custom.preset <<-'PRESET'
-          disable systemd-networkd.service
-          disable systemd-resolved.service
-          enable NetworkManager.service
-          PRESET
-          fi
-
-          # Build ISO using mkarchiso
+              printf '%s\n' 'disable systemd-networkd.service' 'disable systemd-resolved.service' 'enable NetworkManager.service' > /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset/99-cachyos-custom.preset
+            fi
           mkarchiso -v -w /tmp/iso-work -o /tmp/iso-build/out \
             /tmp/iso-build/archiso-profile/archlive
           
