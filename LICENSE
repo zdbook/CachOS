@@ -1,0 +1,29 @@
+This project builds upon the excellent work of CachyOS. The kernel itself (linux-cachyos)
+is licensed under the GNU General Public License v2.0, as all Linux kernels are.
+
+This build infrastructure and tooling is provided as-is for building CachyOS
+Server x86-64-v4 optimized systems. Please refer to the respective licenses of
+CachyOS and the Linux kernel for details on their licensing terms.
+
+CachyOS Project: https://cachyos.org
+Linux Kernel License: https://www.kernel.org/doc/html/latest/process/license-rules.html
+
+---
+
+GPL v2.0 Notice (for the kernel components):
+
+The Linux kernel is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+For the full text of the GNU General Public License v2.0, please see:
+https://www.gnu.org/licenses/gpl-2.0.html
+
+---
+
+Build Infrastructure License:
+
+The build scripts and GitHub Actions workflows in this repository are provided
+as examples and may be freely used, modified, and distributed under the terms
+that best suit your needs.

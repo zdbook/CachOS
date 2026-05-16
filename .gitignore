@@ -1,0 +1,44 @@
+# Build artifacts
+dist/
+build/
+*.iso
+*.tar.*
+*.pkg.tar.*
+
+# Temporary files
+/tmp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# IDE and editor files
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Build caches
+.ccache/
+.cache/
+__pycache__/
+*.pyc
+*.pyo
+
+# Log files
+*.log
+*.txt
+
+# System files
+.env
+.env.local
+.env.*.local
+
+# Build directories
+/tmp/cachyos-*
+/tmp/archiso-*
+
+# ISO build working directories
+/tmp/iso-work/

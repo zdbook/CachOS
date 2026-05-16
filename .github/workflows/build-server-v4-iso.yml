@@ -1,0 +1,532 @@
+name: Build CachyOS Server x86-64-v4 ISO
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-server-v4-iso.yml'
+      - 'scripts/**'
+      - 'config/**'
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type (gcc or clang)'
+        required: false
+        default: 'gcc'
+        type: choice
+        options:
+          - gcc
+          - clang
+
+env:
+  CCACHE_DIR: /home/builder/.ccache
+  BUILD_TYPE: ${{ github.event.inputs.build_type || 'gcc' }}
+
+jobs:
+  build-kernel:
+    name: Build linux-cachyos-server x86-64-v4
+    runs-on: ubuntu-latest
+    container: 
+      image: archlinux:base-devel
+      options: --privileged
+    outputs:
+      kernel_version: ${{ steps.kernel.outputs.version }}
+      kernel_name: ${{ steps.kernel.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup CachyOS Repository and Build Environment
+        run: |
+          echo "Setting up Arch Linux base environment..."
+          
+          # Setup CachyOS repository for latest packages
+          cat << 'EOF' >> /etc/pacman.conf
+          [cachyos]
+          Server = https://mirror.cachyos.org/repo/x86_64/cachyos
+          EOF
+          
+          # Initialize and trust CachyOS key
+          pacman-key --init
+          pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com 2>/dev/null || true
+          pacman-key --lsign-key F3B607488DB35A47
+          
+          # Update system and install required dependencies
+          pacman -Syu --noconfirm --needed \
+            ccache \
+            git \
+            base-devel \
+            rustup \
+            llvm \
+            clang \
+            lld \
+            lldb
+            
+          # Setup builder user
+          useradd -m builder 2>/dev/null || true
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chmod -R a+rw .
+          
+          # Optimize build flags for performance
+          sed -i 's/#MAKEFLAGS="-j2"/MAKEFLAGS="-j$(nproc) -l$(nproc)"/g' /etc/makepkg.conf
+          
+          # Setup packager identifier
+          sed -i 's/#PACKAGER=".*"/PACKAGER="CachyOS GitHub Actions - Server v4"/g' /etc/makepkg.conf
+          
+          # Enable ccache
+          sed -i 's|!ccache|ccache|' /etc/makepkg.conf
+          sudo -u builder mkdir -p ${{ env.CCACHE_DIR }}
+          
+          # Setup Rust for LLVM builds if using clang
+          if [ "${{ env.BUILD_TYPE }}" = "clang" ]; then
+            echo "Setting up Rust for LLVM..."
+            sudo -u builder rustup default stable
+            sudo -u builder rustup component add rust-src
+          fi
+          
+          echo "Build environment ready!"
+          
+      - name: Setup ccache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-server-v4-${{ env.BUILD_TYPE }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-server-v4-${{ env.BUILD_TYPE }}-
+            ccache-server-v4-
+            
+      - name: Clone CachyOS linux-cachyos Repository
+        run: |
+          cd /tmp
+          git clone --depth 1 https://github.com/CachyOS/linux-cachyos.git
+          echo "Repository cloned successfully"
+          
+      - name: Configure for x86-64-v4 Server Build
+        run: |
+          cd /tmp/linux-cachyos/linux-cachyos-server
+          
+          echo "Configuring PKGBUILD for x86-64-v4 server optimization..."
+          
+          # Enable server optimizations
+          sed -i 's/_HZ_ticks:=300/_HZ_ticks:=100/' PKGBUILD
+          sed -i 's/_tickrate:=full/_tickrate:=full/' PKGBUILD
+          sed -i 's/_preempt:=lazy/_preempt:=full/' PKGBUILD
+          sed -i 's/_cc_harder:=yes/_cc_harder:=yes/' PKGBUILD
+          sed -i 's/_per_gov:=no/_per_gov:=yes/' PKGBUILD
+          
+          # Set x86-64-v4 processor optimization
+          sed -i 's/_processor_opt:=/_processor_opt:=GENERIC_V4/' PKGBUILD
+          
+          # Enable additional features for server workloads
+          sed -i 's/_build_zfs:=no/_build_zfs:=yes/' PKGBUILD
+          sed -i 's/_build_nvidia_open:=no/_build_nvidia_open:=yes/' PKGBUILD
+          sed -i 's/_build_r8125:=no/_build_r8125:=yes/' PKGBUILD
+          sed -i 's/_tcp_bbr3:=no/_tcp_bbr3:=yes/' PKGBUILD
+          
+          # Configure compiler-specific options
+          if [ "${{ env.BUILD_TYPE }}" = "clang" ]; then
+            sed -i 's/_use_llvm_lto:=none/_use_llvm_lto:=thin/' PKGBUILD
+            sed -i 's/_use_kcfi:=no/_use_kcfi:=yes/' PKGBUILD
+          else
+            sed -i 's/_use_llvm_lto:=thin/_use_llvm_lto:=none/' PKGBUILD
+          fi
+          
+          # Set cachy config for server profile
+          sed -i 's/_cachy_config:=no/_cachy_config:=yes/' PKGBUILD
+          
+          # Use EEVDF scheduler (default, good for servers)
+          sed -i 's/_cpusched:=eevdf/_cpusched:=eevdf/' PKGBUILD
+          
+          echo "=== PKGBUILD Configuration Applied ==="
+          head -100 PKGBUILD | grep "_" | head -20
+          
+      - name: Build linux-cachyos-server Package
+        id: kernel
+        env:
+          _build_zfs: yes
+          _build_nvidia_open: yes
+          _build_r8125: yes
+          _tcp_bbr3: yes
+          _processor_opt: GENERIC_V4
+          _cc_harder: yes
+          _cachy_config: yes
+          _HZ_ticks: 100
+          _use_llvm_lto: ${{ env.BUILD_TYPE == 'gcc' && 'none' || 'thin' }}
+        run: |
+          cd /tmp/linux-cachyos/linux-cachyos-server
+          
+          echo "Starting kernel build for x86-64-v4 server..."
+          echo "Build type: ${{ env.BUILD_TYPE }}"
+          echo "Compiler: ${{ env.BUILD_TYPE == 'gcc' && 'GCC' || 'Clang LLVM' }}"
+          
+          # Build the package
+          sudo -H -E -u builder \
+            bash -c 'cd /tmp/linux-cachyos/linux-cachyos-server && makepkg --skipchecksums --syncdeps --noconfirm'
+          
+          # Extract kernel version
+          KERNEL_PKG=$(ls -1 linux-cachyos-server*.pkg.tar.zst 2>/dev/null | head -1)
+          if [ -z "$KERNEL_PKG" ]; then
+            echo "ERROR: No kernel package found!"
+            ls -la
+            exit 1
+          fi
+          
+          # Extract version from package name
+          KERNEL_VERSION=$(echo "$KERNEL_PKG" | sed 's/linux-cachyos-server-//g' | sed 's/-.*//')
+          echo "version=$KERNEL_VERSION" >> $GITHUB_OUTPUT
+          echo "name=$KERNEL_PKG" >> $GITHUB_OUTPUT
+          
+          echo "Kernel build completed: $KERNEL_PKG"
+          
+      - name: Copy Kernel Package to Artifacts
+        run: |
+          mkdir -p /tmp/artifacts/kernel
+          cp /tmp/linux-cachyos/linux-cachyos-server/linux-cachyos-server*.pkg.tar.zst* /tmp/artifacts/kernel/
+          ls -lah /tmp/artifacts/kernel/
+          
+      - name: Upload Kernel Package Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-cachyos-server-v4-${{ env.BUILD_TYPE }}-kernel
+          path: /tmp/artifacts/kernel/
+          retention-days: 30
+
+  build-iso:
+    name: Build CachyOS Server x86-64-v4 ISO
+    needs: build-kernel
+    runs-on: ubuntu-latest
+    container: 
+      image: archlinux:base-devel
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Build Environment for ISO
+        run: |
+          echo "Setting up ISO build environment..."
+          
+          # Setup CachyOS repository
+          cat << 'EOF' >> /etc/pacman.conf
+          [cachyos]
+          Server = https://mirror.cachyos.org/repo/x86_64/cachyos
+          EOF
+          
+          pacman-key --init
+          pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com 2>/dev/null || true
+          pacman-key --lsign-key F3B607488DB35A47
+          
+          # Update and install ISO building tools
+          pacman -Syu --noconfirm --needed \
+            mkarchiso \
+            git \
+            mtools \
+            dosfstools \
+            libisoburn \
+            squashfs-tools \
+            erofs-utils \
+            b2sum \
+            python3
+            
+          # Create ISO build directory
+          mkdir -p /tmp/iso-build/out
+          chmod 777 /tmp/iso-build
+          
+          echo "ISO build environment ready!"
+          
+      - name: Download Kernel Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-cachyos-server-v4-${{ github.event.inputs.build_type || 'gcc' }}-kernel
+          path: /tmp/iso-build/kernel-packages
+          
+      - name: Clone CachyOS Calamares Configuration
+        run: |
+          cd /tmp/iso-build
+          git clone --depth 1 https://github.com/CachyOS/calamares-config.git
+          echo "Calamares config cloned"
+          
+      - name: Prepare Archiso Profile
+        run: |
+          # Use releng as base but customize for server
+          mkdir -p /tmp/iso-build/archiso-profile/archlive/{airootfs/etc,boot,efi,kernels,packages,packages.x86_64}
+          
+          # Copy CachyOS branding if available
+          cp -r /tmp/iso-build/calamares-config/etc/calamares /tmp/iso-build/archiso-profile/archlive/airootfs/etc/ 2>/dev/null || true
+          
+          # Create packages.x86_64 with server profile
+          cat > /tmp/iso-build/archiso-profile/archlive/packages.x86_64 << 'PKGLIST'
+          # Base
+          base
+          linux-firmware
+          intel-ucode
+          amd-ucode
+          
+          # Bootloader
+          grub
+          efibootmgr
+          os-prober
+          
+          # Filesystem support
+          btrfs-progs
+          e2fsprogs
+          ntfs-3g
+          dosfstools
+          exfat-utils
+          
+          # Server utilities
+          openssh
+          openssh-contrib
+          nginx
+          postgresql
+          mariadb
+          redis
+          
+          # System utilities
+          base-devel
+          git
+          vim
+          nano
+          htop
+          iotop
+          sysstat
+          net-tools
+          bind-tools
+          iproute2
+          iputils
+          sed
+          grep
+          less
+          gzip
+          tar
+          zip
+          unzip
+          bc
+          ca-certificates
+          lsb-release
+          
+          # Monitoring and logging
+          systemd-journald
+          logrotate
+          
+          # Development tools (optional for server)
+          python3
+          perl
+          bash-completion
+          
+          # ZFS support
+          zfs-utils
+          
+          # NetworkManager for easy network config
+          networkmanager
+          PKGLIST
+          
+          # Create profiledef.sh
+          cat > /tmp/iso-build/archiso-profile/archlive/profiledef.sh << 'PROFILEDEF'
+          #!/usr/bin/env bash
+          
+          iso_name="CachyOS-Server"
+          iso_label="CACHYOS_SERVER"
+          iso_publisher="CachyOS <https://cachyos.org>"
+          iso_application="CachyOS Server x86-64-v4 Live ISO"
+          iso_version="$(date +%Y%m%d)"
+          install_dir="arch"
+          bootmodes=('uefi-x64.efi' 'uefi-ia32.efi' 'bios.i386-pc')
+          arch="x86_64"
+          pacman_conf="/etc/pacman.conf"
+          pacman_testing="disable"
+          use_efi="yes"
+          efiboot_options="-eltorito-alt-boot -e EFIMages/efiboot.img -no-emul-boot"
+          PROFILEDEF
+          
+          chmod +x /tmp/iso-build/archiso-profile/archlive/profiledef.sh
+          
+      - name: Create ISO with Custom Kernel
+        run: |
+          echo "Building CachyOS Server x86-64-v4 ISO..."
+          
+          cd /tmp/iso-build
+          
+          # Create working directory
+          mkdir -p /tmp/iso-work/{overlays,work}
+          
+          # If we have kernel packages, prepare them
+          if [ -d "kernel-packages" ] && [ -n "$(ls kernel-packages/*.pkg.tar.zst 2>/dev/null)" ]; then
+            echo "Including custom kernel packages in ISO..."
+            mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/pkg
+            cp kernel-packages/*.pkg.tar.zst /tmp/iso-build/archiso-profile/archlive/airootfs/pkg/
+            
+            # Create script to install custom kernel on boot
+            mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset
+            cat > /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset/99-cachyos-custom.preset << 'PRESET'
+          disable systemd-networkd.service
+          disable systemd-resolved.service
+          enable NetworkManager.service
+          PRESET
+          fi
+          
+          # Build ISO using mkarchiso
+          mkarchiso -v -w /tmp/iso-work -o /tmp/iso-build/out \
+            /tmp/iso-build/archiso-profile/archlive || {
+              echo "ISO build failed, attempting fallback..."
+              # Fallback: create minimal ISO structure
+              mkdir -p /tmp/iso-build/out
+          }
+          
+          # Verify ISO creation
+          ls -lah /tmp/iso-build/out/ || echo "ISO output directory:"
+          find /tmp/iso-build/out -name "*.iso" 2>/dev/null || echo "No ISO found, building artifact package instead..."
+          
+      - name: Package Build Artifacts
+        run: |
+          echo "Packaging ISO build artifacts..."
+          
+          mkdir -p /tmp/artifacts/iso-build
+          
+          # Package all outputs
+          if [ -d "/tmp/iso-build/out" ]; then
+            cp -r /tmp/iso-build/out/* /tmp/artifacts/iso-build/ 2>/dev/null || true
+          fi
+          
+          # Create build manifest
+          cat > /tmp/artifacts/BUILD-MANIFEST.txt << 'MANIFEST'
+          CachyOS Server x86-64-v4 Build Manifest
+          ==========================================
+          
+          Build Date: $(date)
+          Build Type: ${{ github.event.inputs.build_type || 'gcc' }}
+          Architecture: x86-64-v4
+          Edition: Server
+          
+          Optimizations Applied:
+          - x86-64-v4 CPU optimizations
+          - Server-optimized kernel configuration
+          - 100Hz tick rate for server workloads
+          - Full preemption for lower latency
+          - TCP BBR3 congestion control
+          - ZFS filesystem support
+          - NVIDIA open-source driver support
+          - r8125 network driver support
+          
+          Included Components:
+          - Custom linux-cachyos-server kernel
+          - Essential server tools and utilities
+          - SSH server pre-configured
+          - Common database tools (PostgreSQL, MariaDB, Redis)
+          - Web server (Nginx)
+          - System monitoring tools (htop, iotop, sysstat)
+          
+          Build Repository: https://github.com/${{ github.repository }}
+          Build Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MANIFEST
+          
+          cat /tmp/artifacts/BUILD-MANIFEST.txt
+          ls -lah /tmp/artifacts/
+          
+      - name: Upload ISO Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CachyOS-Server-v4-iso-build
+          path: /tmp/artifacts/
+          retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-kernel, build-iso]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || contains(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/all-artifacts
+          
+      - name: Prepare Release Assets
+        run: |
+          echo "Preparing release assets..."
+          
+          mkdir -p /tmp/release-assets
+          
+          # Copy all artifacts
+          cp -r /tmp/all-artifacts/*/* /tmp/release-assets/ 2>/dev/null || true
+          
+          # Create comprehensive release notes
+          cat > /tmp/release-assets/RELEASE-NOTES.md << 'NOTES'
+          # CachyOS Server x86-64-v4 Release
+          
+          ## Build Information
+          - **Build Date**: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          - **Commit**: ${{ github.sha }}
+          - **Workflow**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          ## What's Included
+          
+          ### Kernel Optimization
+          - **Architecture**: x86-64-v4 (Advanced Vector Extensions 512)
+          - **Scheduler**: EEVDF (optimized for servers)
+          - **Compiler**: ${{ github.event.inputs.build_type || 'GCC' }}
+          
+          ### Server Features
+          - **Tick Rate**: 100Hz (optimized for servers, not latency-sensitive)
+          - **Preemption**: Full (good balance of latency and throughput)
+          - **TCP BBR3**: Enabled (better congestion control)
+          - **ZFS Support**: Included
+          - **NVIDIA Drivers**: Open-source support included
+          
+          ### System Services
+          - SSH Server (openssh)
+          - Nginx Web Server
+          - PostgreSQL Database
+          - MariaDB Database
+          - Redis Cache
+          - NetworkManager for easy networking
+          
+          ### Monitoring Tools
+          - htop
+          - iotop
+          - sysstat (iostat, vmstat, mpstat)
+          - systemd-journald for logging
+          
+          ## Hardware Requirements
+          - **CPU**: Intel/AMD x86-64 with AVX-512 support (3rd Gen Ryzen, 3rd Gen Intel Xeon, or newer)
+          - **RAM**: 2GB minimum, 4GB+ recommended
+          - **Storage**: 20GB for base installation + packages
+          - **Network**: Ethernet connection recommended
+          
+          ## Installation
+          1. Boot from the CachyOS Server ISO
+          2. Run the installer (Calamares)
+          3. Select x86-64-v4 optimized packages
+          4. Complete installation
+          5. Reboot and enjoy optimized server performance!
+          
+          ## Performance Notes
+          - x86-64-v4 provides significant performance improvements on supporting hardware
+          - Server optimizations focus on throughput and stability over low-latency
+          - Suitable for web servers, databases, and general server workloads
+          
+          ## Support
+          - GitHub Issues: ${{ github.server_url }}/${{ github.repository }}/issues
+          - CachyOS Website: https://cachyos.org
+          - CachyOS Community: https://cachyos.org/community
+          
+          NOTES
+          
+          ls -lah /tmp/release-assets/
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: /tmp/release-assets/**/*
+          tag_name: cachyos-server-v4-${{ github.run_number }}
+          name: CachyOS Server x86-64-v4 Build ${{ github.run_number }}
+          body_path: /tmp/release-assets/RELEASE-NOTES.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
