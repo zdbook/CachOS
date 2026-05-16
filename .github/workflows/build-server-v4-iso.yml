@@ -333,7 +333,7 @@ jobs:
           iso_application="CachyOS Server x86-64-v4 Live ISO"
           iso_version="$(date +%Y%m%d)"
           install_dir="arch"
-          bootmodes=('uefi-x64.efi' 'uefi-ia32.efi' 'bios.i386-pc')
+          bootmodes=('bios' 'uefi-x64')
           arch="x86_64"
           pacman_conf="/etc/pacman.conf"
           pacman_testing="disable"
@@ -369,15 +369,15 @@ jobs:
           
           # Build ISO using mkarchiso
           mkarchiso -v -w /tmp/iso-work -o /tmp/iso-build/out \
-            /tmp/iso-build/archiso-profile/archlive || {
-              echo "ISO build failed, attempting fallback..."
-              # Fallback: create minimal ISO structure
-              mkdir -p /tmp/iso-build/out
-          }
+            /tmp/iso-build/archiso-profile/archlive
           
           # Verify ISO creation
           ls -lah /tmp/iso-build/out/ || echo "ISO output directory:"
-          find /tmp/iso-build/out -name "*.iso" 2>/dev/null || echo "No ISO found, building artifact package instead..."
+          iso_files=$(find /tmp/iso-build/out -name "*.iso" 2>/dev/null)
+          if [ -z "$iso_files" ]; then
+            echo "ERROR: No ISO found after mkarchiso" >&2
+            exit 1
+          fi
           
       - name: Package Build Artifacts
         run: |
