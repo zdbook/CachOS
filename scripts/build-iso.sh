@@ -48,6 +48,7 @@ pacman -Syu --noconfirm --needed \
 
 # Step 2: Create archiso profile
 echo "[2/5] Creating Archiso profile..."
+mkdir -p "$BUILD_DIR/archiso-profile/archlive"
 if [ -d "/usr/share/archiso/configs/releng" ]; then
     cp -r /usr/share/archiso/configs/releng/* "$BUILD_DIR/archiso-profile/archlive/" 2>/dev/null || true
 else

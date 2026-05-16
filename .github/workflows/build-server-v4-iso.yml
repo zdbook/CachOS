@@ -251,6 +251,7 @@ jobs:
       - name: Prepare Archiso Profile
         run: |
           # Use releng as base but customize for server
+          mkdir -p /tmp/iso-build/archiso-profile/archlive
           if [ -d "/usr/share/archiso/configs/releng" ]; then
             cp -r /usr/share/archiso/configs/releng/* /tmp/iso-build/archiso-profile/archlive/
           else
