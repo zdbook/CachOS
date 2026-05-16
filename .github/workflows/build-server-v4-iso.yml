@@ -255,7 +255,12 @@ jobs:
           
           # Copy CachyOS branding if available
           cp -r /tmp/iso-build/calamares-config/etc/calamares /tmp/iso-build/archiso-profile/archlive/airootfs/etc/ 2>/dev/null || true
-          
+
+          # Preserve host pacman config for build-time repository access
+          mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.d
+          cp /etc/pacman.conf /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.conf
+          cp /etc/pacman.d/mirrorlist /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.d/mirrorlist
+
           # Create packages.x86_64 with server profile
           cat > /tmp/iso-build/archiso-profile/archlive/packages.x86_64 << 'PKGLIST'
           # Base
@@ -275,6 +280,14 @@ jobs:
           ntfs-3g
           dosfstools
           exfat-utils
+          
+          # CachyOS custom kernel
+          linux-cachyos-server
+          
+          # Installer support
+          calamares
+          archinstall
+          arch-install-scripts
           
           # Server utilities
           openssh
@@ -355,10 +368,19 @@ jobs:
           # If we have kernel packages, prepare them
           if [ -d "kernel-packages" ] && [ -n "$(ls kernel-packages/*.pkg.tar.zst 2>/dev/null)" ]; then
             echo "Including custom kernel packages in ISO..."
-            mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/pkg
-            cp kernel-packages/*.pkg.tar.zst /tmp/iso-build/archiso-profile/archlive/airootfs/pkg/
-            
-            # Create script to install custom kernel on boot
+            mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo
+            cp kernel-packages/*.pkg.tar.zst /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/
+
+            if compgen -G "/tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst" > /dev/null; then
+              repo-add /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/custom.db.tar.gz /tmp/iso-build/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst
+              cat >> /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.conf << 'EOF'
+                [custom-kernel]
+                SigLevel = Optional TrustAll
+                Server = file:///root/repo
+              EOF
+            fi
+
+            # Configure server boot preset
             mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset
             cat > /tmp/iso-build/archiso-profile/archlive/airootfs/etc/systemd/system-preset/99-cachyos-custom.preset << 'PRESET'
           disable systemd-networkd.service
@@ -366,7 +388,7 @@ jobs:
           enable NetworkManager.service
           PRESET
           fi
-          
+
           # Build ISO using mkarchiso
           mkarchiso -v -w /tmp/iso-work -o /tmp/iso-build/out \
             /tmp/iso-build/archiso-profile/archlive

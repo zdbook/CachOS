@@ -81,6 +81,11 @@ lvm2
 # CachyOS custom kernel
 linux-cachyos-server
 
+# Installer support
+calamares
+archinstall
+arch-install-scripts
+
 # Server core
 openssh
 openssh-contrib
@@ -198,6 +203,28 @@ terminus-font
 ttf-dejavu
 EOF
 
+# Prepare local kernel package repository if a custom kernel package exists
+LOCAL_KERNEL_PKG_DIR=""
+if [ -n "${CUSTOM_KERNEL_PKG_DIR:-}" ]; then
+    LOCAL_KERNEL_PKG_DIR="$CUSTOM_KERNEL_PKG_DIR"
+else
+    LOCAL_KERNEL_PKG_DIR="$(find /tmp -type f -name 'linux-cachyos-server*.pkg.tar.zst' -printf '%h\n' | head -n 1 || true)"
+fi
+
+if [ -n "$LOCAL_KERNEL_PKG_DIR" ] && [ -d "$LOCAL_KERNEL_PKG_DIR" ]; then
+    echo "[2.5/5] Preparing local kernel package repository..."
+    mkdir -p "$BUILD_DIR/archiso-profile/archlive/airootfs/root/repo"
+    cp "$LOCAL_KERNEL_PKG_DIR"/*.pkg.tar.zst "$BUILD_DIR/archiso-profile/archlive/airootfs/root/repo/" 2>/dev/null || true
+    if compgen -G "$BUILD_DIR/archiso-profile/archlive/airootfs/root/repo/*.pkg.tar.zst" > /dev/null; then
+        repo-add "$BUILD_DIR/archiso-profile/archlive/airootfs/root/repo/local.db.tar.gz" "$BUILD_DIR/archiso-profile/archlive/airootfs/root/repo/"*.pkg.tar.zst
+        cat >> "$BUILD_DIR/archiso-profile/archlive/airootfs/etc/pacman.conf" << 'EOF'
+[custom-kernel]
+SigLevel = Optional TrustAll
+Server = file:///root/repo
+EOF
+    fi
+fi
+
 echo "[3/5] Creating profile configuration..."
 
 # Create profiledef.sh
@@ -210,7 +237,7 @@ iso_publisher="CachyOS Project <https://cachyos.org>"
 iso_application="CachyOS Server x86-64-v4 Live Install Medium"
 iso_version="$(date +%Y.%m.%d)"
 install_dir="arch"
-bootmodes=('uefi-x64.efi' 'uefi-ia32.efi' 'bios.i386-pc')
+bootmodes=('bios' 'uefi-x64')
 arch="x86_64"
 pacman_conf="/etc/pacman.conf"
 pacman_testing="disable"
