@@ -48,12 +48,11 @@ pacman -Syu --noconfirm --needed \
 
 # Step 2: Create archiso profile
 echo "[2/5] Creating Archiso profile..."
-mkdir -p "$BUILD_DIR/archiso-profile/archlive/airootfs/etc"
-mkdir -p "$BUILD_DIR/archiso-profile/archlive/boot"
-
-# Copy archiso base profile
 if [ -d "/usr/share/archiso/configs/releng" ]; then
     cp -r /usr/share/archiso/configs/releng/* "$BUILD_DIR/archiso-profile/archlive/" 2>/dev/null || true
+else
+    mkdir -p "$BUILD_DIR/archiso-profile/archlive/airootfs/etc"
+    mkdir -p "$BUILD_DIR/archiso-profile/archlive/boot"
 fi
 
 # Create packages list for server
@@ -237,7 +236,8 @@ iso_publisher="CachyOS Project <https://cachyos.org>"
 iso_application="CachyOS Server x86-64-v4 Live Install Medium"
 iso_version="$(date +%Y.%m.%d)"
 install_dir="arch"
-bootmodes=('bios' 'uefi-x64')
+buildmodes=('iso')
+bootmodes=('bios.syslinux' 'uefi.systemd-boot')
 arch="x86_64"
 pacman_conf="/etc/pacman.conf"
 pacman_testing="disable"

@@ -251,7 +251,11 @@ jobs:
       - name: Prepare Archiso Profile
         run: |
           # Use releng as base but customize for server
-          mkdir -p /tmp/iso-build/archiso-profile/archlive/{airootfs/etc,boot,efi,kernels,packages}
+          if [ -d "/usr/share/archiso/configs/releng" ]; then
+            cp -r /usr/share/archiso/configs/releng/* /tmp/iso-build/archiso-profile/archlive/
+          else
+            mkdir -p /tmp/iso-build/archiso-profile/archlive/{airootfs/etc,boot,efi,kernels,packages}
+          fi
           
           # Copy CachyOS branding if available
           cp -r /tmp/iso-build/calamares-config/etc/calamares /tmp/iso-build/archiso-profile/archlive/airootfs/etc/ 2>/dev/null || true
@@ -273,6 +277,7 @@ jobs:
           grub
           efibootmgr
           os-prober
+          syslinux
           
           # Filesystem support
           btrfs-progs
@@ -346,7 +351,8 @@ jobs:
           iso_application="CachyOS Server x86-64-v4 Live ISO"
           iso_version="$(date +%Y%m%d)"
           install_dir="arch"
-          bootmodes=('bios' 'uefi-x64')
+          buildmodes=('iso')
+          bootmodes=('bios.syslinux' 'uefi.systemd-boot')
           arch="x86_64"
           pacman_conf="/etc/pacman.conf"
           pacman_testing="disable"
