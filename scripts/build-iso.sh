@@ -37,14 +37,13 @@ echo ""
 # Step 1: Setup base environment
 echo "[1/5] Setting up build environment..."
 pacman -Syu --noconfirm --needed \
-    mkarchiso \
+    archiso \
     git \
     mtools \
     dosfstools \
     libisoburn \
     squashfs-tools \
     erofs-utils \
-    b2sum \
     python3
 
 # Step 2: Create archiso profile

@@ -221,14 +221,13 @@ jobs:
           
           # Update and install ISO building tools
           pacman -Syu --noconfirm --needed \
-            mkarchiso \
+            archiso \
             git \
             mtools \
             dosfstools \
             libisoburn \
             squashfs-tools \
             erofs-utils \
-            b2sum \
             python3
             
           # Create ISO build directory
