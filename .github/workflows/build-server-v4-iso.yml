@@ -297,7 +297,6 @@ jobs:
           
           # Server utilities
           openssh
-          openssh-contrib
           nginx
           postgresql
           mariadb
@@ -327,7 +326,7 @@ jobs:
           lsb-release
           
           # Monitoring and logging
-          systemd-journald
+          systemd
           logrotate
           
           # Development tools (optional for server)

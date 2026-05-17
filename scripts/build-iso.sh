@@ -149,32 +149,6 @@ awk
 diffutils
 patch
 
-# Archive and backup
-bacula
-rsnapshot
-restic
-duplicity
-
-# Monitoring and logging
-systemd-journald
-logrotate
-syslog-ng
-openrc
-
-# ZFS support (if built into kernel)
-zfs-utils
-zfs-auto-snapshot
-
-# NVIDIA support
-nvidia
-nvidia-utils
-nvidia-settings
-
-# Virtualization (optional)
-qemu
-libvirt
-virt-manager
-
 # SSH and security
 openssh
 fail2ban
@@ -201,6 +175,12 @@ doas
 kbd
 terminus-font
 ttf-dejavu
+
+# Monitoring and logging
+systemd
+logrotate
+syslog-ng
+openrc
 EOF
 
 # Prepare local kernel package repository if a custom kernel package exists
