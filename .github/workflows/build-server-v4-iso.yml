@@ -323,13 +323,12 @@ jobs:
           unzip
           bc
           ca-certificates
-          lsb-release
           
           # Monitoring and logging
           systemd
           logrotate
           
-          # Development tools (optional for server)
+          # Development tools
           python3
           perl
           bash-completion
