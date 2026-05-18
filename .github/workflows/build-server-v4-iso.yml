@@ -245,8 +245,8 @@ jobs:
       - name: Clone CachyOS Calamares Configuration
         run: |
           cd /tmp/iso-build
-          git clone --depth 1 https://github.com/CachyOS/calamares-config.git
-          echo "Calamares config cloned"
+          # Optional: git clone --depth 1 https://github.com/CachyOS/calamares-config.git
+          echo "Skipping calamares config to avoid conflicts"
           
       - name: Prepare Archiso Profile
         run: |
@@ -257,9 +257,6 @@ jobs:
           else
             mkdir -p /tmp/iso-build/archiso-profile/archlive/{airootfs/etc,boot,efi,kernels,packages}
           fi
-          
-          # Copy CachyOS branding if available
-          cp -r /tmp/iso-build/calamares-config/etc/calamares /tmp/iso-build/archiso-profile/archlive/airootfs/etc/ 2>/dev/null || true
 
           # Preserve host pacman config for build-time repository access
           mkdir -p /tmp/iso-build/archiso-profile/archlive/airootfs/etc/pacman.d
